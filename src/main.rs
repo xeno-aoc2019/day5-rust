@@ -13,6 +13,10 @@ const I_ADD: Instruction = Instruction { opcode: 1, steps_next: 4 };
 const I_MUL: Instruction = Instruction { opcode: 2, steps_next: 4 };
 const I_IN: Instruction = Instruction { opcode: 3, steps_next: 2 };
 const I_OUT: Instruction = Instruction { opcode: 4, steps_next: 2 };
+const I_JT: Instruction = Instruction { opcode: 5, steps_next: 3 };
+const I_JF: Instruction = Instruction { opcode: 6, steps_next: 3 };
+const I_LT: Instruction = Instruction { opcode: 7, steps_next: 4 };
+const I_EQ: Instruction = Instruction { opcode: 8, steps_next: 5 };
 const I_HALT: Instruction = Instruction { opcode: 99, steps_next: 0 };
 
 const MODE_REF: i32 = 0;
@@ -25,6 +29,10 @@ impl fmt::Display for Instruction {
             2 => write!(f, "I_MUL({})", self.opcode),
             3 => write!(f, "I_IN({})", self.opcode),
             4 => write!(f, "I_OUT({})", self.opcode),
+            5 => write!(f, "I_JT({})", self.opcode),
+            6 => write!(f, "I_JF({})", self.opcode),
+            7 => write!(f, "I_LT({})", self.opcode),
+            8 => write!(f, "I_EQ({})", self.opcode),
             _ => write!(f, "UNKNOWN({}", self.opcode)
         }
     }
@@ -171,6 +179,10 @@ impl VM {
             2 => I_MUL,
             3 => I_IN,
             4 => I_OUT,
+            5 => I_JT,
+            6 => I_JF,
+            7 => I_LT,
+            8 => I_EQ,
             99 => I_HALT,
             _ => {
                 println!("Unknown opcode at ip={}: {}", self.ip, opcode);
@@ -197,6 +209,13 @@ impl VM {
 
     fn step(&mut self, n: usize) {
         self.ip += n;
+    }
+
+    fn goto(&mut self, dest: i32) {
+        if dest < 0 {
+            panic!("Trying to jump out of the program");
+        }
+        self.ip = dest as usize;
     }
 
     fn read_input(&mut self) -> i32 {
@@ -227,7 +246,7 @@ impl VM {
         self.step(I_MUL.steps_next);
     }
 
-    fn i_input(&mut self, modes: &ParaModes) {
+    fn i_input(&mut self) {
         let adr = self.fetch_arg(1);
         let input = self.read_input();
         self.write_mem(adr, input);
@@ -235,13 +254,55 @@ impl VM {
         self.ip = self.ip + I_IN.steps_next;
     }
 
-    fn i_output(&mut self, modes: &ParaModes) {
+    fn i_output(&mut self) {
         let adr = self.program[(self.ip + 1) as usize] as usize;
         let output = self.program[adr];
         self.outputs.push(output);
         self.out_p += 1;
         println!("I_OUTPUT: outputting [{}] = {}", adr, output);
         self.ip = self.ip + I_OUT.steps_next;
+    }
+
+    fn i_jt(&mut self, modes: &ParaModes) {
+        let param = self.fetch_arg_value(1, modes.mode(1));
+        let dest = self.fetch_arg_value(2, modes.mode(2));
+        let jump = param != 0;
+        println!("I_JT {} ->{}:{}", dest, dest, jump);
+        if jump {
+            self.goto(dest);
+        }
+        self.step(I_JT.steps_next);
+    }
+
+    fn i_jf(&mut self, modes: &ParaModes) {
+        let param = self.fetch_arg_value(1, modes.mode(1));
+        let dest = self.fetch_arg_value(2, modes.mode(2));
+        let jump = param == 0;
+        println!("I_JF {} ->{}:{}", dest, dest, jump);
+        if jump {
+            self.goto(dest);
+        }
+        self.step(I_JT.steps_next);
+    }
+
+    fn i_lt(&mut self, modes: &ParaModes) {
+        let param1 = self.fetch_arg_value(1, modes.mode(1));
+        let param2 = self.fetch_arg_value(2, modes.mode(2));
+        let dest = self.fetch_arg(3);
+        let res = if param1 < param2 { 1 } else { 0 };
+        println!("I_LT [{}]={} = {}=={}", dest, res, param1, param2);
+        self.write_mem(dest, res);
+        self.step(I_LT.steps_next);
+    }
+
+    fn i_eq(&mut self, modes: &ParaModes) {
+        let param1 = self.fetch_arg_value(1, modes.mode(1));
+        let param2 = self.fetch_arg_value(2, modes.mode(2));
+        let dest = self.fetch_arg(3);
+        let res = if param1 == param2 { 1 } else { 0 };
+        println!("I_EQ [{}]={} = {}=={}", dest, res, param1, param2);
+        self.write_mem(dest, res);
+        self.step(I_EQ.steps_next);
     }
 
     fn i_halt(&mut self) {
@@ -256,8 +317,8 @@ impl VM {
         if opcode == 99 { return self.i_halt(); };
         if opcode == 1 { return self.i_add(&modes); };
         if opcode == 2 { return self.i_mul(&modes); };
-        if opcode == 3 { return self.i_input(&modes); };
-        if opcode == 4 { return self.i_output(&modes); };
+        if opcode == 3 { return self.i_input(); };
+        if opcode == 4 { return self.i_output(); };
         println!("Unknown instruction: {}, halting", opcode);
         self.i_halt();
     }
