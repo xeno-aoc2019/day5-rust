@@ -16,7 +16,7 @@ const I_OUT: Instruction = Instruction { opcode: 4, steps_next: 2 };
 const I_JT: Instruction = Instruction { opcode: 5, steps_next: 3 };
 const I_JF: Instruction = Instruction { opcode: 6, steps_next: 3 };
 const I_LT: Instruction = Instruction { opcode: 7, steps_next: 4 };
-const I_EQ: Instruction = Instruction { opcode: 8, steps_next: 5 };
+const I_EQ: Instruction = Instruction { opcode: 8, steps_next: 4 };
 const I_HALT: Instruction = Instruction { opcode: 99, steps_next: 0 };
 
 const MODE_REF: i32 = 0;
@@ -77,7 +77,7 @@ impl ParaModes {
         params[0] = param_part % 10;
         params[1] = ((param_part - param_part % 10) / 10) % 10;
         params[2] = ((param_part - (param_part % 100)) / 100) % 10;
-        println!("MODES: instr={} : {} => {},{},{}", instr, param_part, params[0], params[1], params[2]);
+//        println!("MODES: instr={} : {} => {},{},{}", instr, param_part, params[0], params[1], params[2]);
         params
     }
 
@@ -172,7 +172,7 @@ impl VM {
     fn fetch_instr(&self) -> (Instruction, ParaModes) {
         let instruction = self.program[self.ip];
         let para_modes = ParaModes::new(instruction);
-        println!("Fetching instruction at [{}] = {}", self.ip, instruction);
+//        println!("Fetching instruction at [{}] = {}", self.ip, instruction);
         let opcode = instruction % 100;
         let instr = match opcode {
             1 => I_ADD,
@@ -212,6 +212,7 @@ impl VM {
     }
 
     fn goto(&mut self, dest: i32) {
+        println!("Goto {}", dest);
         if dest < 0 {
             panic!("Trying to jump out of the program");
         }
@@ -270,19 +271,21 @@ impl VM {
         println!("I_JT {} ->{}:{}", dest, dest, jump);
         if jump {
             self.goto(dest);
+        } else {
+            self.step(I_JT.steps_next);
         }
-        self.step(I_JT.steps_next);
     }
 
     fn i_jf(&mut self, modes: &ParaModes) {
         let param = self.fetch_arg_value(1, modes.mode(1));
         let dest = self.fetch_arg_value(2, modes.mode(2));
         let jump = param == 0;
-        println!("I_JF {} ->{}:{}", dest, dest, jump);
+        println!("I_JF {} ->{}:{}", param, dest, jump);
         if jump {
             self.goto(dest);
+        } else {
+            self.step(I_JT.steps_next);
         }
-        self.step(I_JT.steps_next);
     }
 
     fn i_lt(&mut self, modes: &ParaModes) {
@@ -319,6 +322,10 @@ impl VM {
         if opcode == 2 { return self.i_mul(&modes); };
         if opcode == 3 { return self.i_input(); };
         if opcode == 4 { return self.i_output(); };
+        if opcode == 5 { return self.i_jt(&modes); };
+        if opcode == 6 { return self.i_jf(&modes); };
+        if opcode == 7 { return self.i_lt(&modes); };
+        if opcode == 8 { return self.i_eq(&modes); };
         println!("Unknown instruction: {}, halting", opcode);
         self.i_halt();
     }
@@ -341,7 +348,9 @@ fn main() {
     let program = read_program();
 //    let program = vec!(3, 0, 4, 0, 99);
 //    let program = vec!(1, 0, 0, 0, 99);
-    let mut vm: VM = VM::new(program, vec!(1));
+//    let program = vec!(3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9);
+//    let program = vec!(3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1);
+    let mut vm: VM = VM::new(program, vec!(5));
     vm.run();
 }
 
